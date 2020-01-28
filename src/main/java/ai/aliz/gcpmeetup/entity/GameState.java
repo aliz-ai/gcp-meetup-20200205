@@ -23,6 +23,8 @@ public class GameState {
 	@Index
 	private boolean active = true;
 	
+	private GameResult result;
+	
 	/**
 	 * Starts with 0, where player A can place an 'o'.
 	 * In odd rounds user B places an 'x'.
@@ -33,6 +35,12 @@ public class GameState {
 	 * Textual representation, each cell is either a space, either 'o' (session A) or 'x' (session B).
 	 * 3 characters sequence for each row, 3 rows, 9 characters total.
 	 */
-	private String gameState = "         ";
+	private String fields = "         ";
 
+	public enum GameResult {
+		ClientAWon,
+		ClientBWon,
+		Draw,
+		Abandoned
+	}
 }

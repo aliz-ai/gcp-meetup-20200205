@@ -9,6 +9,8 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.servlet.http.HttpSession;
 
+import com.google.common.base.Strings;
+import com.google.gson.Gson;
 import com.googlecode.objectify.ObjectifyService;
 
 import ai.aliz.gcpmeetup.entity.ActiveGame;
@@ -31,14 +33,23 @@ public class TicTacServlet extends HttpServlet {
 	protected void doGet(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
 		HttpSession session = req.getSession(true);
 		String placeParam = req.getParameter("place");
+		String sessionId = session.getId();
+		TicTacService ticTacService = new TicTacService();
 		final GameState game;
-		if (placeParam != null) {
-			int index = Integer.parseInt(placeParam);
-			game = new TicTacService().place(session.getId(), index);
+		if (!Strings.isNullOrEmpty(req.getParameter("abandon"))) {
+			log("Abandoning game", new RuntimeException("Game abandoned"));
+			game = ticTacService.abandonCurrent(sessionId);
 		} else {
-			game = new TicTacService().getOrCreateActiveGame(session.getId());
+			if (placeParam != null) {
+				int index = Integer.parseInt(placeParam);
+				game = ticTacService.place(sessionId, index);
+			} else {
+				game = ticTacService.getOrCreateActiveGame(sessionId);
+			}
 		}
-		resp.getWriter().print(game.getGameState());
+		GameInfo gameInfo = GameInfo.from(sessionId, game);
+		String infoJson = new Gson().toJson(gameInfo);
+		resp.getWriter().print(infoJson);
 	}
 
 }

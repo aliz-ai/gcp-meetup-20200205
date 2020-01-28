@@ -19,5 +19,10 @@
 	<sessions-enabled>true</sessions-enabled>
 
 	<warmup-requests-enabled>true</warmup-requests-enabled>
+	
+	<static-files>
+		<include path="/*" expiration="1s">
+		</include>
+	</static-files>
 
 </appengine-web-app>

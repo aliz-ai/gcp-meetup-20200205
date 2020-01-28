@@ -1,9 +1,41 @@
 <!DOCTYPE html>
 <html>
-	<head>
-		<title>Cloud-Toe</title>
-	</head>
-	<body>
-		<script src="script.js"></script>
-	</body>
+<head>
+<title>Cloud-Toe</title>
+<style>
+body * {
+  font-size: 5vw;
+  font-family: sans-serif;
+}
+body {
+  text-align: center;
+}
+div#field {
+	width: 90%;
+	height: 90vw;
+}
+
+div#field>div {
+	display: inline-block;
+    border: 1px solid gray;
+    width: 28vw;
+    height: 28vw;
+    white-space: pre;
+    text-align: center;
+    line-height: 28vw;
+    font-size: 15vw;
+}
+#my-piece {
+}
+</style>
+</head>
+<body>
+	<div>
+		<div id="state"></div>
+		<span id="my-piece"></span>
+	</div>
+	<div id="field"></div>
+	<script src="script.js"></script>
+	<button onclick="abandon()">New game</button>
+</body>
 </html>
