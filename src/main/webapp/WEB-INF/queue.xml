@@ -12,6 +12,10 @@
 			<max-doublings>3</max-doublings>
 		</retry-parameters>
 	</queue>
-
+	
+	<queue>
+		<name>insight</name>
+		<mode>pull</mode>
+	</queue>
 
 </queue-entries>

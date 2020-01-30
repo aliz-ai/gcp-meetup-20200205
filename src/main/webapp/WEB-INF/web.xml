@@ -7,7 +7,7 @@
 
 	<filter>
 		<filter-name>ObjectifyFilter</filter-name>
-		<filter-class>com.googlecode.objectify.ObjectifyFilter</filter-class>
+		<filter-class>ai.aliz.gcpmeetup.objectify.MyObjectifyFilter</filter-class>
 	</filter>
 	<filter-mapping>
 		<filter-name>ObjectifyFilter</filter-name>
