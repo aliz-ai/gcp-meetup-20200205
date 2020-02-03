@@ -13,6 +13,7 @@ import com.google.common.base.Strings;
 import com.google.gson.Gson;
 import com.googlecode.objectify.ObjectifyService;
 
+import ai.aliz.gcpmeetup.TicTacService.SessionAndGame;
 import ai.aliz.gcpmeetup.entity.ActiveGame;
 import ai.aliz.gcpmeetup.entity.GameState;
 
@@ -35,7 +36,10 @@ public class TicTacServlet extends HttpServlet {
 		String placeParam = req.getParameter("place");
 		String sessionId = session.getId();
 		TicTacService ticTacService = new TicTacService();
-		final GameState game;
+		final SessionAndGame game;
+		if (!Strings.isNullOrEmpty(req.getParameter("initial"))) {
+			ticTacService.touchSession(sessionId);
+		}
 		if (!Strings.isNullOrEmpty(req.getParameter("abandon"))) {
 			log("Abandoning game", new RuntimeException("Game abandoned"));
 			game = ticTacService.abandonCurrent(sessionId);

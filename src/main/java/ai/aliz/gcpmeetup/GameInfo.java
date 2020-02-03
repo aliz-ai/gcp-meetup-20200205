@@ -2,6 +2,7 @@ package ai.aliz.gcpmeetup;
 
 import com.google.common.base.Strings;
 
+import ai.aliz.gcpmeetup.TicTacService.SessionAndGame;
 import ai.aliz.gcpmeetup.entity.GameState;
 import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
@@ -17,8 +18,12 @@ public class GameInfo {
 	
 	private boolean isClientA;
 	
-	public static GameInfo from(String sessionId, GameState gameState) {
+	public static GameInfo from(String sessionId, SessionAndGame sessionAndGame) {
 		final ClientState state;
+		GameState gameState = sessionAndGame.getGameState();
+		if (sessionAndGame.isTimedOut()) {
+			return new GameInfo(null, ClientState.PlayerInactive, false);
+		}
 		boolean isClientA = gameState.getSessionIdA().equals(sessionId);
 		if (isClientA && Strings.isNullOrEmpty(gameState.getSessionIdB())) {
 			state = ClientState.WaitingForOpponent;
@@ -56,7 +61,8 @@ public class GameInfo {
 		Won,
 		Lost,
 		Draw,
-		Abandoned
+		Abandoned,
+		PlayerInactive
 	}
 
 }

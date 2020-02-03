@@ -2,8 +2,9 @@ package ai.aliz.gcpmeetup;
 
 import static com.googlecode.objectify.ObjectifyService.ofy;
 
+import java.util.Date;
 import java.util.List;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 import java.util.logging.Level;
 
 import com.google.cloud.tasks.v2.CloudTasksClient;
@@ -17,6 +18,8 @@ import com.google.common.base.Strings;
 import ai.aliz.gcpmeetup.entity.ActiveGame;
 import ai.aliz.gcpmeetup.entity.GameState;
 import ai.aliz.gcpmeetup.entity.GameState.GameResult;
+import lombok.Data;
+import lombok.NoArgsConstructor;
 import lombok.SneakyThrows;
 import lombok.extern.java.Log;
 
@@ -26,18 +29,43 @@ public class TicTacService {
 	private static final int [] [] sequences = {
 			{0, 1, 2}, {3, 4, 5}, {6, 7, 8},
 			{0, 3, 6}, {1, 4, 7}, {2, 5, 8},
-			{0, 5, 8}, {2, 4, 6}
+			{0, 4, 8}, {2, 4, 6}
 	};
 
-	public GameState getOrCreateActiveGame(String sessionId) {
-		return getOrCreateAndUpdateActiveGame(sessionId, gameState -> false);
+	@Data
+	@NoArgsConstructor
+	public static class SessionAndGame {
+		private ActiveGame activeGame;
+		private GameState gameState;
+		private boolean timedOut;
+		
+		public SessionAndGame(ActiveGame activeGame, GameState gameState) {
+			this.activeGame = activeGame;
+			this.gameState = gameState;
+		}
+		
+		static SessionAndGame timedOut(ActiveGame activeGame) {
+			SessionAndGame result = new SessionAndGame();
+			result.activeGame = activeGame;
+			result.timedOut = true;
+			return result;
+		}
 	}
 	
-	protected GameState getOrCreateAndUpdateActiveGame(String sessionId, Function<GameState, Boolean> work) {
+	public SessionAndGame getOrCreateActiveGame(String sessionId) {
+		return getOrCreateAndUpdateActiveGame(sessionId, (gameState, activeGame) -> false);
+	}
+	
+	protected SessionAndGame getOrCreateAndUpdateActiveGame(String sessionId, BiFunction<GameState, ActiveGame, Boolean> work) {
 		ActiveGame activeGame = ofy().load().type(ActiveGame.class).id(sessionId).now();
 		if (activeGame != null) {
+			if (activeGame.hasTimedout()) {
+				// current session timed out with inactivity
+				return SessionAndGame.timedOut(activeGame);
+			}
 			GameState gameState = ofy().load().type(GameState.class).id(activeGame.getGameId()).now();
 			if (gameState != null && gameState.isActive()) {
+				// check half-open game
 				if (Strings.isNullOrEmpty(gameState.getSessionIdB())) {
 					GameState existingGame = tryJoinAnOpenGame(sessionId);
 					if (existingGame != null) {
@@ -45,19 +73,31 @@ public class TicTacService {
 						gameState.setResult(GameResult.Abandoned);
 						ofy().save().entities(gameState);
 						// don't apply work here
-						return existingGame;
+						return new SessionAndGame(activeGame, existingGame);
 					}
 				}
-				if (work.apply(gameState)) {
-					ofy().save().entities(gameState);
+				// check other session's timeout
+				String otherSessionId = gameState.getSessionIdA().equals(sessionId) ? gameState.getSessionIdB() : gameState.getSessionIdA();
+				if (!Strings.isNullOrEmpty(otherSessionId)) {
+					ActiveGame otherSession = ofy().load().type(ActiveGame.class).id(otherSessionId).now();
+					if (otherSession == null || otherSession.hasTimedout()) {
+						gameState.setActive(false);
+						gameState.setResult(GameResult.Abandoned);
+						ofy().save().entities(gameState);
+						return getOrCreateAndUpdateActiveGame(sessionId, work);
+					}
 				}
-				return gameState;
+				// we're still ok, apply the change
+				if (work.apply(gameState, activeGame)) {
+					ofy().save().entities(gameState, activeGame);
+				}
+				return new SessionAndGame(activeGame, gameState);
 			}
 		}
 		GameState gameState = null;
 		gameState = tryJoinAnOpenGame(sessionId);
 		if (gameState != null) {
-			return gameState;
+			return new SessionAndGame(activeGame, gameState);
 		}
 		// no existing found, create new
 		gameState = new GameState();
@@ -66,9 +106,9 @@ public class TicTacService {
 		activeGame = new ActiveGame();
 		activeGame.setSessionId(sessionId);
 		activeGame.setGameId(gameState.getId());
-		work.apply(gameState);
+		work.apply(gameState, activeGame);
 		ofy().save().entities(activeGame, gameState);
-		return gameState;
+		return new SessionAndGame(activeGame, gameState);
 	}
 
 	private GameState tryJoinAnOpenGame(String sessionId) {
@@ -103,9 +143,9 @@ public class TicTacService {
 		return null;
 	}
 
-	public GameState place(String sessionId, int index) {
+	public SessionAndGame place(String sessionId, int index) {
 		Preconditions.checkArgument(0 <= index && index < 9, index + " should be in range 0..8");
-		return getOrCreateAndUpdateActiveGame(sessionId, gameState -> {
+		return getOrCreateAndUpdateActiveGame(sessionId, (gameState, activeGame) -> {
 			boolean isUserA = gameState.getSessionIdA().equals(sessionId);
 			Preconditions.checkState(gameState.getRound() % 2 == (isUserA ? 0 : 1)); // ensure proper round
 			String stateString = gameState.getFields();
@@ -117,6 +157,7 @@ public class TicTacService {
 				gameState.setResult(result);
 				reportGameOutcome(gameState.getId());
 			}
+			activeGame.setLastActive(new Date());
 			return true;
 		});
 	}
@@ -138,8 +179,9 @@ public class TicTacService {
 		return null;
 	}
 	
-	public GameState abandonCurrent(String sessionId) {
-		getOrCreateAndUpdateActiveGame(sessionId, gameState -> {
+	public SessionAndGame abandonCurrent(String sessionId) {
+		touchSession(sessionId);
+		getOrCreateAndUpdateActiveGame(sessionId, (gameState, activeGame) -> {
 			gameState.setActive(false);
 			if (gameState.getResult() == null) {
 				gameState.setResult(GameResult.Abandoned);
@@ -164,6 +206,14 @@ public class TicTacService {
 			}
 		} catch (Exception e) {
 			log.log(Level.SEVERE, "Couldn't start analyzer for game: " + gameId, e);
+		}
+	}
+
+	public void touchSession(String sessionId) {
+		ActiveGame activeGame = ofy().load().type(ActiveGame.class).id(sessionId).now();
+		if (activeGame != null) {
+			activeGame.setLastActive(new Date());
+			ofy().save().entities(activeGame);
 		}
 	}
 }

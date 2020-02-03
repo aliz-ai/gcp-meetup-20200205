@@ -21,7 +21,7 @@ function init() {
 		cells[i] = div;
 	}
 	randomizeEmoji();
-	sendCommand("").then(() => {
+	sendCommand("initial=true").then(() => {
 		// TODO use firebase
 		setTimeout(refresh, 1000);
 	});

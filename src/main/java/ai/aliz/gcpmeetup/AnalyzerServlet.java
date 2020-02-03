@@ -2,7 +2,6 @@ package ai.aliz.gcpmeetup;
 
 import java.io.IOException;
 import java.time.Instant;
-import java.util.Date;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -44,7 +43,8 @@ public class AnalyzerServlet extends HttpServlet {
 		rowContent.put("final_field", gameState.getFields());
 		rowContent.put("outcome", gameState.getResult().name());
 		rowContent.put("timestamp", Instant.now().getEpochSecond());
-		InsertAllResponse response = bigquery.insertAll(InsertAllRequest.newBuilder(tableId).addRow(rowContent).build());
+		InsertAllResponse response = bigquery
+			.insertAll(InsertAllRequest.newBuilder(tableId).addRow(rowContent).build());
 		if (response.hasErrors()) {
 			log.severe("BQ insert errors: " + response.getInsertErrors());
 		}
